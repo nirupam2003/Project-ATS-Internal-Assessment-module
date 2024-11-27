@@ -1,0 +1,5 @@
+Based on the following job description, ask interview questions:
+{jd_text},
+take difficulty level:{difficulty_level}/10     
+Generate 5 technical questions inside a list structure and return. Give only questions in Java or PHP,
+you are generating similar question after every round please find from other resources.
