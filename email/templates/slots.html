@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Schedule Interview</title>
+</head>
+<body>
+    <h2>Select Your Interview Slot</h2>
+    <form action="/select_slot" method="post">
+        <label for="name">Name:</label><br>
+        <input type="text" id="name" name="name" required><br>
+        <label for="email">Email:</label><br>
+        <input type="email" id="email" name="email" required><br>
+        <label for="slot">Available Slots:</label><br>
+        <select id="slot" name="slot" required>
+            {% for slot in slots %}
+                <option value="{{ slot }}">{{ slot }}</option>
+            {% endfor %}
+        </select><br><br>
+        <input type="submit" value="Submit">
+    </form>
+</body>
+</html>
