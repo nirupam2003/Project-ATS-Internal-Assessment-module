@@ -1,14 +1,17 @@
 from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import HTMLResponse
+import speech_recognition as sr
+from pydub import AudioSegment
 import google.generativeai as genai
 import PyPDF2
 import os
+from dotenv import load_dotenv
 from pydantic import BaseModel
 
+load_dotenv()
 app = FastAPI()
 GPT_MODEL = "gemini-1.5-pro"
-
-genai.configure(api_key="AIzaSyCN8lHHrnwykZQtWRzNsDLjOB6jeLPQkbI")  # Replace with your actual API key
+genai.configure(api_key=os.environ.get("GEM_API"))  # Replace with your actual API key
 
 class ChatRequest(BaseModel):
     message: str
@@ -73,6 +76,32 @@ async def generate_questions(prompt):
         print(f"Error generating interview questions: {str(e)}")
         return ["Error generating questions."]
 
+@app.post("/upload_audio/")
+async def upload_audio(audio: UploadFile = File(...)):
+    # Save the uploaded audio file
+    audio_filename = "uploaded_audio" + audio.filename
+    with open(audio_filename, "wb") as f:
+        f.write(await audio.read())
+    
+    # Convert the file to WAV if it's not already in WAV format
+    if not audio_filename.endswith(".wav"):
+        audio = AudioSegment.from_file(audio_filename)
+        audio.export("uploaded_audio.wav", format="wav")
+        audio_filename = "uploaded_audio.wav"
+
+    # Process the audio file with speech recognition
+    try:
+        with sr.AudioFile(audio_filename) as source:
+            recognizer = sr.Recognizer()
+            audio_data = recognizer.record(source)
+            text = recognizer.recognize_google(audio_data)
+            print(text)
+            return {"transcription": text}
+    except Exception as e:
+        return {"error": str(e)}
+
+    # Return a response
+    
 # Function to generate a chat response from user input
 async def get_chat_response(user_message):
     try:
@@ -83,3 +112,4 @@ async def get_chat_response(user_message):
     except Exception as e:
         print(f"Error in chat response: {str(e)}")
         return "Error generating chat response."
+
