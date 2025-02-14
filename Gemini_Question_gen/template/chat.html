@@ -294,7 +294,7 @@
         let mediaRecorder;
         let audioChunks = [];
         let currentQuestionIndex = 0;
-        let questions = [];
+        let questions = {};
 
         function displayMessage(text, sender) {
             const messageDiv = document.createElement('div');
@@ -307,52 +307,81 @@
             chatBody.scrollTop = chatBody.scrollHeight;
         }
 
-        function showQuestion(questionIndex) {
-            if (questionIndex < questions.length) {
-                displayMessage("Question: " + questions[questionIndex], 'bot');
+        function showQuestion(questionId) {
+            console.log(questionId, questions.length);
+            if (questionId < questions.length) { // Ensure questions is an array
+                const questionText = questions[questionId].question; // Access the 'question' property
+                displayMessage("Question: " + questionText, 'bot');
+                currentQuestionIndex = questionId; // Update the current question index
                 startRecordingButton.disabled = false;
                 stopRecordingButton.disabled = true;
             } else {
                 displayMessage("All questions completed. Thank you for your responses!", 'bot');
             }
         }
-
         async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
+        try {
+            // Request microphone access and initialize MediaRecorder
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
 
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
+            // Collect audio data
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
 
+            // Handle stopping of recording
                 mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    const formData = new FormData();
-                    formData.append('audio', audioBlob);
+                    try {
+                        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob);
+                        formData.append('question_id', currentQuestionIndex); // Pass the current question ID
 
-                    const response = await fetch('/upload_audio/', {
-                        method: 'POST',
-                        body: formData,
-                    });
-                    const data = await response.json();
-                    if (data.transcription) {
-                        displayMessage(data.transcription, 'user');
-                        currentQuestionIndex++;
-                        showQuestion(currentQuestionIndex);
-                    } else {
-                        displayMessage("Error processing audio: " + (data.error || "Unknown error"), 'bot');
+                        // Send audio to server
+                        const response = await fetch('/upload_audio/', {
+                            method: 'POST',
+                            body: formData,
+                        });
+
+                        // Process server response
+                        if (!response.ok) {
+                            throw new Error(`HTTP error: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+
+                        if (data.transcription) {
+                            displayMessage(`You said: ${data.transcription}`, 'user');
+
+                            if (data.next_question_id) {
+                                showQuestion(data.next_question_id); // Show next question
+                            } else {
+                                displayMessage("All questions completed. Thank you for your responses!", 'bot');
+                                startRecordingButton.disabled = true; // Disable buttons when done
+                                stopRecordingButton.disabled = true;
+                            }
+                        } else {
+                            displayMessage("Error processing audio: " + (data.error || "Unknown error"), 'bot');
+                        }
+                    } catch (error) {
+                        console.error("Error while uploading audio:", error);
+                        displayMessage("Error while uploading audio. Please try again.", 'bot');
                     }
                 };
 
+                // Start recording
                 mediaRecorder.start();
-                displayMessage("Recording started...", 'bot');
+                displayMessage("Recording started. Please speak your answer.", 'bot');
+
+                // Update button states
                 startRecordingButton.disabled = true;
                 stopRecordingButton.disabled = false;
-            } catch (error) {
-                displayMessage("Error accessing microphone: " + error.message, 'bot');
-            }
+                } catch (error) {
+                    console.error("Error starting recording:", error);
+                    displayMessage("Microphone access denied or unavailable.", 'bot');
+                }
         }
 
         function stopRecording() {
@@ -365,27 +394,26 @@
         }
 
         sendMessageButton.addEventListener('click', async () => {
-            const pdfFile = pdfUpload.files[0];
-            if (pdfFile) {
-                const formData = new FormData();
-                formData.append('file', pdfFile);
+        const pdfFile = pdfUpload.files[0];
+        if (pdfFile) {
+            const formData = new FormData();
+            formData.append('file', pdfFile);
 
-                const pdfResponse = await fetch('/upload_pdf/', {
-                    method: 'POST',
-                    body: formData,
-                });
-                const pdfData = await pdfResponse.json();
-                if (pdfData.questions) {
-                    questions = pdfData.questions;
-                    currentQuestionIndex = 0;
-                    showQuestion(currentQuestionIndex);
-                } else {
-                    displayMessage("Error uploading PDF: " + (pdfData.error || "Unknown error"), 'bot');
-                }
-                pdfUpload.value = '';
+            const pdfResponse = await fetch('/upload_pdf/', {
+                method: 'POST',
+                body: formData,
+            });
+            const pdfData = await pdfResponse.json();
+            if (Array.isArray(pdfData.questions)) { // Ensure questions is an array
+                questions = pdfData.questions; // Store questions as an array
+                showQuestion(0); // Show the first question
             } else {
-                displayMessage("Please attach a PDF file", 'bot');
+                displayMessage("Error uploading PDF: " + (pdfData.error || "Unknown error"), 'bot');
             }
+            pdfUpload.value = '';
+        } else {
+            displayMessage("Please attach a PDF file", 'bot');
+        }
         });
 
         startRecordingButton.addEventListener('click', startRecording);
