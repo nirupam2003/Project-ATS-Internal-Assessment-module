@@ -2,7 +2,7 @@ name: Trivy SCA Scan
  
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
  
 jobs:
   trivy-sca:
