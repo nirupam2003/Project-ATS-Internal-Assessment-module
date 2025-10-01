@@ -8,6 +8,8 @@ import os
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+
+#loading dotnet env
 load_dotenv()
 app = FastAPI()
 GPT_MODEL = "gemini-1.5-pro-002"
